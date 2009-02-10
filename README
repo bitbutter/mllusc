@@ -1,0 +1,7 @@
+Installation
+
+For ease of use, place the entire mllusc directry in a place where SuperCollider will check for classes to include when compiling. On OSX this could be: /Applications/SuperCollider/SCClassLibrary/self_contained_projects/mllusc (the 'self_contained_projects' directory will not exist by default, and is one that you might want to create).
+
+Disclaimer
+
+mllusc is provided 'as is'. It's published primarily as a 'proof of concept' and not intended to be used in a performance setting (in it's current state). It's published as an example of the kind of thing that can be done in SuperCollider, and to give others the chance to expand or improve on what's there so far.

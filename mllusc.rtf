@@ -1,0 +1,318 @@
+{\rtf1\mac\ansicpg10000\cocoartf824\cocoasubrtf480
+{\fonttbl\f0\fnil\fcharset77 Monaco;}
+{\colortbl;\red255\green255\blue255;\red191\green0\blue0;\red0\green0\blue0;\red0\green0\blue191;
+\red96\green96\blue96;\red191\green0\blue0;\red0\green115\blue0;}
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+
+\f0\fs18 \cf2 /*\
+Mllusc\
+Mlr clone, Proof of concept\
+Tomasz Kaye 2009\
+\
+Use:\
+Connect monome-compatible controller to computer\
+Open ArduinomeSerial/ MonomeSerial\
+Use following settings:\
+\
+i/o: OpenSound Control\
+host address: 127.0.0.1\
+Host Port 57120\
+Listen Port: 8080\
+\
+Select the code below by double clicking inside the opening bracket\
+Lang>Run\
+*/\cf0 \
+\
+(\cf3 \
+\cf4 var\cf3  monomes, muter,monome_mute_group_view;\
+\cf4 var\cf3  preference_file_path=\cf4 Document\cf3 .current.path.dirname++\cf5 "/mllusc_preferences"\cf3 ;\
+\cf4 var\cf3  preset_directory_path=\cf4 Document\cf3 .current.path.dirname++\cf5 "/mllusc_presets/"\cf3 ;\
+preset_directory_path.postln;\
+\pard\pardeftab560\ql\qnatural
+\cf4 Server\cf3 .default = \cf4 Server\cf3 .internal;\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf3 s = \cf4 Server\cf3 .default;\
+~bg_colour=\cf4 Color\cf3 .new255(30,30,30);\
+~button_bg_colour=\cf4 Color\cf3 .new255(70,70,70);\
+~statebutton_bg_colour=\cf4 Color\cf3 .new255(10,10,20);\
+~button_text_colour=\cf4 Color\cf3 .new255(220,220,220);\
+~button_border_colour=\cf4 Color\cf3 .white;\
+~highlight_1_colour=\cf4 Color\cf3 .new255(150,0,0);\
+~highlight_1_colour_dark=\cf4 Color\cf3 .new255(50,0,0);\
+~highlight_2_colour=\cf4 Color\cf3 .new255(0,50,0);\
+~preferences=\cf4 MlluscPreferences\cf3 .new();\
+~preferences.set_preference_file_path(preference_file_path);\
+~preferences.register_item(\cf5 "preset_directory"\cf3 ,preset_directory_path);\
+\
+~format_button=\{\cf4 |button|\cf3 \
+	button.radius=8;\
+	button.border=2;\
+	button.inverse=\cf4 true\cf3 ;\
+	button.extrude=\cf4 false\cf3 ;\
+	\
+\};\
+~format_rounded_button=\{\cf4 |button|\cf3 \
+	button.border=2;\
+	button.inverse=\cf4 true\cf3 ;\
+	button.extrude=\cf4 false\cf3 ;\
+\};\
+\
+s.waitForBoot(\{\
+	\cf4 MlluscMetronome\cf3 .init;\
+	\cf4 MlluscWavePlayer\cf3 .init;\
+	\cf4 MlluscResampler\cf3 .init;\
+	\cf4 SystemClock\cf3 .sched(0.0,\{\
+		\{\
+			\cf4 var\cf3  muter, metronome, mainwin, presses, metronome_view, r, event_generator, monome_led_grid, pattern_units, resampler, summing_bus_index, win, presetwin, save_as_button,set_folder_button;\
+			\
+			summing_bus_index=50; \cf6 // where waveplayers will send their output\cf3 \
+			\
+			monomes=[\cf4 MonomEm\cf3 .new(\cf5 "127.0.0.1"\cf3 , 8080),\cf4 Monome\cf3 .new(\cf5 "127.0.0.1"\cf3 , 8080)];\
+			\
+			win = \cf4 GUI\cf3 .window.new(\cf5 "Mllusc"\cf3 ,\cf4 Rect\cf3 (200,0,950,600)).front.decorate;\
+			win.view.background = ~bg_colour;\
+			mainwin = \cf4 FlowView\cf3 .new(win, \cf4 Rect\cf3 (0,0,950,300));\
+			presetwin=\cf4 FlowView\cf3 .new(win,\cf4 Rect\cf3 (980,0,1200,600));\
+			~metronome=\cf4 MlluscMetronome\cf3 .new(2);\
+\pard\pardeftab560\ql\qnatural
+\cf3 			monome_led_grid=\cf4 MlluscMonomeLedGrid\cf3 (monomes,8,8);\
+			resampler=\cf4 MlluscResampler\cf3 .new(summing_bus_index,0,~metronome);\
+			resampler.set_resampling_done_callback_function(e \{\cf4 |buf,beats|\cf3 \
+				\cf4 var\cf3  wp=~r[0].at(\cf7 'wave_player'\cf3 );\
+				wp.set_resampled_audio_flag(\cf4 true\cf3 );\
+				wp.use_this_buffer(buf);\
+				wp.set_length_in_beats(beats);\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf3 				muter.mute_all();\
+				wp.set_level(1);\
+				\{~r[0].at(\cf7 'row_view'\cf3 ).move_level_slider(1)\}.defer;\
+				wp.play_this_event(\cf4 MlluscEvent\cf3 .new(0,0,\cf7 \\regular\cf3 ,2));\
+\pard\pardeftab560\ql\qnatural
+\cf3 			\});\
+			\
+			~preset_butler=\cf4 MlluscPresetButler\cf3 .new();\
+			~preset_butler.set_directory(preset_directory_path);\
+			\cf6 // Overwrite preset dir if preference directive exists\cf3 \
+			~preset_butler.set_directory(~preferences.get_value(\cf5 "preset_directory"\cf3 ));\
+			~preset_butler.register_object(~metronome,\cf5 "metronome"\cf3 ,[\cf7 \\preset_bps\cf3 ]);\
+\
+\
+			muter=\cf4 MlluscMuter\cf3 .new();\
+			\
+			save_as_button=\cf4 RoundButton\cf3 (presetwin, 80@40);\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf3 			~format_rounded_button.value(save_as_button);\
+ 			save_as_button.states=[[\cf5 "Save as"\cf3 ,~button_text_colour,~button_bg_colour]];\
+			\cf6 // Limitation of CocoaDialog, can't predefine starting path\cf3 \
+			save_as_button.action=\{\
+				\cf4 CocoaDialog\cf3 .savePanel(\{ \cf4 arg\cf3  path;\
+\pard\pardeftab560\ql\qnatural
+\cf3 					~preset_butler.save_preset_at_path(path);\
+					~preset_view.refresh();\
+				\},\{\
+					\cf5 "Save was cancelled"\cf3 .postln;\
+				\});\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf3 			\};\
+			\
+			set_folder_button=\cf4 RoundButton\cf3 (presetwin, 80@40);\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab560\ql\qnatural\pardirnatural
+\cf3 			~format_rounded_button.value(set_folder_button);\
+ 			set_folder_button.states=[[\cf5 "Set Folder"\cf3 ,~button_text_colour,~button_bg_colour]];\
+			set_folder_button.action=\{\
+				\cf4 SCRequestString\cf3 ( ~preferences.get_value(\cf5 "preset_directory"\cf3 ),\
+\pard\pardeftab560\ql\qnatural
+\cf3 				\cf5 "Enter the full path to your preset folder here"\cf3 , \{ \cf4 |path|\cf3 \
+					~preferences.set_value(\cf5 "preset_directory"\cf3 ,path);\
+					~preset_butler.set_directory(~preferences.get_value(\cf5 "preset_directory"\cf3 ));\
+					~preset_view.path=~preferences.get_value(\cf5 "preset_directory"\cf3 );\
+					~preset_view.refresh();\
+				\},\{\
+					\cf5 "Set preferences path was cancelled"\cf3 .postln;\
+				\},1);\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab560\ql\qnatural\pardirnatural
+\cf3 			\};\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf3 		\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural
+\cf3 			~preset_view = \cf4 FileListView\cf3 (\
+				presetwin,\
+				\cf4 Rect\cf3 (420,0,230,180), \
+				preset_directory_path,\
+				action:			\{ \cf4 arg\cf3  v; postf(\cf5 "action: %\\n"\cf3 , v.filename ) \}, \
+				dblClickAction:	\{ \cf4 arg\cf3  v; postf(\cf5 "dblClickAction: %\\n"\cf3 , v.fullname ); 				~preset_butler.load_preset_from_path(v.fullname)\}\
+			);\
+ 			~preset_view.listbox.background=~state_button_bg_colour;\
+ 			~preset_view.listbox.hiliteColor=~highlight_1_colour;\
+ 			~preset_view.listbox.stringColor=~button_text_colour;	\
+\pard\pardeftab560\ql\qnatural
+\cf3 			presses=\cf4 MlluscMonomeButtonPresses\cf3 .new(monomes[1]); \cf6 // listen for presses from the real monome only\cf3 \
+			event_generator=\cf4 MlluscEventGenerator\cf3 .new();\
+			\
+			muter.mutable_added_to_group_callback_function=e \{\cf4 |mutable,group_index|\cf3 \
+				~r[mutable.get_id()].at(\cf7 'row_view'\cf3 ).radio_button_view.activate(group_index);\
+			\};\
+			muter.mute_group_became_inactive_callback_function=e \{\cf4 |mute_group_index|\cf3 \
+				monome_led_grid.off(mute_group_index,0);\
+			\};\
+			~preset_butler.register_object(muter,\cf5 "muter"\cf3 ,[\cf7 \\preset_mutables\cf3 ]);\
+			presses.addDependant(event_generator);\
+		\
+			metronome_view=\cf4 MlluscMetronomeView\cf3 .new(mainwin,20,200,~metronome);\
+			~metronome.addDependant(metronome_view);\
+			~metronome.set_bpm(120);\
+			mainwin.hr;\
+			\
+			pattern_units=\cf4 Array\cf3 .new();\
+			\
+			\cf6 // Create pattern units\cf3 \
+			(0..1).do(\{\cf4 |index|\cf3 \
+				\cf4 var\cf3  pattern_unit=\cf4 MlluscPatternUnit\cf3 .new(index,~metronome);\
+				\cf4 var\cf3  x=index+6;\
+				\cf4 var\cf3  y=0;\
+				event_generator.addDependant(pattern_unit.recorder);\
+				pattern_unit.recorder.armed_callback_function=\{monome_led_grid.blink(x,y,0.2)\};\
+				pattern_unit.recorder.stop_callback_function=\{monome_led_grid.off(x,y)\};\
+				pattern_unit.recorder.recording_complete_callback_function=\{monome_led_grid.on(x,y);pattern_unit.player.play(pattern_unit.recorder.list)\};\
+				pattern_unit.play_callback_function=\{monome_led_grid.on(x,y)\};\
+				pattern_unit.player.stop_callback_function=\{monome_led_grid.off(x,y)\};\
+				pattern_unit.started_recording_callback_function=\{monome_led_grid.blink(x,y,0.02)\};\
+				pattern_units=pattern_units.add(pattern_unit);		\
+			\});\
+			\
+			\cf6 // Assign behaviours to monome button presses by coordinate pairs\cf3 \
+			presses.callback_function=e \{\cf4 |x,y,on|\cf3 \
+				case\
+				\cf6 // Only respond to presses not releases\cf3 \
+				\{on==1\} \{\
+					case\
+					\cf6 // Top row\cf3 \
+					\{y==0\} \{\
+						case\
+						\{x.inclusivelyBetween(0,4)\} \{muter.mute_this_group(x)\}\
+						\cf6 // 0,5: Bounce down patterns\cf3 \
+						\{x==5\} \{\
+							pattern_units[0].player.merge_list_with(pattern_units[1].player);\
+							pattern_units[1].stop();\
+						\}\
+						\cf6 // 0,6 0,7: Advance the state of pattern units \cf3 \
+						\{x.inclusivelyBetween(6,7)\} \{pattern_units[x-6].do_it()\}\
+					\}\
+					\cf6 // Bottom Row\cf3 \
+					\{y==7\} \{\
+						case\
+						\cf6 // 7,0: Start resampling (to first wave player row)\cf3 \
+						\{x==0\} \{resampler.start_resampling()\}\
+						\cf6 // 7,6: load previous preset\cf3 \
+						\{x==6\} \{\
+							\{\
+								~preset_view.value=~preset_view.value-1;\
+								~preset_butler.load_preset_from_path(~preset_view.fullname);\
+							\}.defer;\
+						\}\
+						\cf6 // 7,6: load next preset\cf3 \
+						\{x==7\} \{\
+							\{\
+								~preset_view.value=~preset_view.value+1;\
+								~preset_butler.load_preset_from_path(~preset_view.fullname);\
+							\}.defer;\
+						\}\
+					\}\
+				\}\
+			\};\
+			\
+			\cf6 // Set up rows array for access to all row elements\cf3 \
+			~r = \cf4 Array\cf3 .new(0);\
+			\
+			\cf6 // For each wave player row\cf3 \
+			(0..4).do(\{\cf4 arg\cf3  num;\
+				\cf4 var\cf3  wave_player, row_controller, row_view, monome_row_view,test;\
+				\cf4 var\cf3  dict=\cf4 Dictionary\cf3 .new;\
+				\
+				\cf6 // models\cf3 \
+				wave_player=\cf4 MlluscWavePlayer\cf3 .new(num,~metronome,8,summing_bus_index);\
+				\
+				\cf6 // views\cf3 \
+				row_view=\cf4 MlluscWavePlayerRowView\cf3 .new(num,mainwin,\
+					e \{\cf4 |group_index|\cf3 \
+						muter.add_to_group(wave_player,group_index);\
+					\},\
+					wave_player\
+				);\
+				monome_row_view=\cf4 MlluscMonomeRowView\cf3 .new(num+1,monomes); \cf6 // offset (+1 to skip first row which is already assigned), monome_array\cf3 \
+		\
+				\cf6 // controllers\cf3 \
+				row_controller=\cf4 MlluscWavePlayerRowController\cf3 .new(num,wave_player,~metronome,muter,monomes,row_view);\
+		\
+				\cf6 // set up listeners\cf3 \
+				~metronome.addDependant(wave_player);\
+				wave_player.addDependant(row_controller);\
+				\
+				row_controller.addDependant(row_view);\
+				row_controller.addDependant(monome_row_view);\
+				\
+				row_view.addDependant(row_controller);\
+				muter.addDependant(row_controller);\
+				event_generator.addDependant(row_controller);\
+				pattern_units[0].player.addDependant(row_controller);\
+				pattern_units[1].player.addDependant(row_controller);\
+				row_controller.addDependant(monome_row_view);\
+				\
+				\cf6 // Add named items to a dictionary, and store it in row array (~r)\cf3 \
+				dict.add(\cf7 'wave_player'\cf3  -> wave_player);\
+				dict.add(\cf7 'row_view'\cf3  -> row_view);\
+				dict.add(\cf7 'monome_row_view'\cf3  -> monome_row_view);\
+				dict.add(\cf7 'row_controller'\cf3  -> row_controller);\
+				~r=~r.add(dict);\
+				\
+				wave_player=muter.add_to_group(wave_player,num); \cf6 // radio buttons should get highlighted here\cf3 \
+				\
+				wave_player.set_play_event_callback_function(\
+					e \{\
+						monome_led_grid.on(muter.get_group_index_by_mutable(wave_player),0);\
+						wave_player.mute_my_siblings();\
+					\}\
+				);\
+				wave_player.set_step_change_callback_function(\
+					e \{\cf4 |s|\cf3 \
+						\{monome_row_view.single_light_on(s)\}.defer;\
+					\}\
+				);\
+				wave_player.set_stop_callback_function(\
+					e \{\cf4 |s|\cf3 \
+						monome_row_view.all_lights_off();\
+						if(wave_player.mute_group.all_mutables_have_stopped(),\
+							\{muter.make_mutables_group_inactive(wave_player)\},\
+							\{\}\
+						);\
+					\}\
+				);\
+				\
+				wave_player.set_waveform_changed_callback_function(\
+					e \{\cf4 |a|\cf3 \
+						~r[wave_player.get_id()].at(\cf7 'row_view'\cf3 ).redraw_waveform(a);\
+					\}\
+				);\
+				\
+				wave_player.set_storable_attributes_loaded_callback_function(\
+					e \{\cf4 |w|\cf3 \
+						~r[w.get_id()].at(\cf7 'row_view'\cf3 ).set_inherit_button(w.get_inherit_wave());\
+					\};\
+				);\
+				\
+				wave_player.set_level_set_callback_function(\
+					e \{\cf4 |w|\cf3 \
+						~r[w.get_id()].at(\cf7 'row_view'\cf3 ).move_level_slider(w.get_level());\
+					\};\
+				);\
+				\
+				~preset_butler.register_object(wave_player,\cf5 "wave_player"\cf3 ++num,[\cf7 \\preset_wave\cf3 ,\cf7 \\preset_rate_scale_multiplier\cf3 ,\cf7 \\preset_inherit_wave\cf3 ,\cf7 \\preset_level\cf3 ]);\
+				wave_player.set_level(0.7);\
+				row_view.move_level_slider(0.7);\
+				mainwin.startRow;\
+			\});\cf6 // eo 0..4 loop\cf3 \
+		\}.defer; \cf6 // eo scheduled func\cf3 \
+	\}); \cf6 // eo wait for boot\cf3 \
+\});\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\ql\qnatural\pardirnatural
+\cf0 )}
